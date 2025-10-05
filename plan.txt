@@ -1,0 +1,440 @@
+exoplanet-classification-api/
+├── app/
+│   ├── __init__.py
+│   ├── main.py                  # FastAPI entry point
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── deep_learning.py     # CNN/DNN model handling
+│   │   ├── ml_models.py         # XGBoost/SVM/KNN handling
+│   │   └── model_loader.py      # Common model loading utilities
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── dl_models.py         # Routes for CNN/DNN
+│   │   └── ml_models.py         # Routes for XGBoost/SVM/KNN
+│   ├── schemas/
+│   │   ├── __init__.py
+│   │   ├── requests.py          # Pydantic models for request validation
+│   │   └── responses.py         # Pydantic models for response formatting
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── data_service.py      # Data fetching/processing logic
+│   │   └── prediction_service.py # Prediction handling
+│   └── utils/
+│       ├── __init__.py
+│       └── data_processing.py   # Data transformation utilities
+├── data/
+│   ├── time_series/            # Time series data for CNN/DNN
+│   ├── features/               # Extracted features data
+│   └── test_data.csv           # Pre-loaded test data
+├── models/
+│   ├── cnn.keras              # CNN model file
+│   ├── dnn.keras              # DNN model file
+│   ├── xgboost.joblib         # XGBoost model file
+│   ├── svm.joblib             # SVM model file
+│   └── knn.joblib             # KNN model file
+├── Dockerfile                 # For containerization
+├── requirements.txt           # Python dependencies
+└── README.md                  # Documentation
+
+
+main.py >> template
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers import dl_models, ml_models
+
+app = FastAPI(
+    title="Exoplanet Classification API",
+    description="API for exoplanet classification using various ML models",
+    version="1.0.0"
+)
+
+# Configure CORS to allow requests from your Next.js frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Update with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include routers
+app.include_router(dl_models.router, prefix="/api/dl", tags=["Deep Learning Models"])
+app.include_router(ml_models.router, prefix="/api/ml", tags=["Machine Learning Models"])
+
+@app.get("/", tags=["Root"])
+async def read_root():
+    return {"message": "Welcome to Exoplanet Classification API"}
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    return {"status": "healthy"}
+
+
+requests.py >> template
+
+from enum import Enum
+from typing import Optional, List, Union, Dict
+from pydantic import BaseModel, Field
+
+class ModelType(str, Enum):
+    CNN = "cnn"
+    DNN = "dnn"
+    XGBOOST = "xgboost"
+    SVM = "svm"
+    KNN = "knn"
+
+class DataSource(str, Enum):
+    MANUAL = "manual"
+    UPLOAD = "upload"
+    TEST = "test"
+
+class DLModelRequest(BaseModel):
+    model: ModelType = Field(..., description="Deep learning model type (cnn or dnn)")
+    kepid: str = Field(..., description="Kepler ID for the target exoplanet")
+    predict: bool = Field(True, description="Flag to run prediction")
+
+class MLModelRequest(BaseModel):
+    model: ModelType = Field(..., description="ML model type (xgboost, svm, or knn)")
+    datasource: DataSource = Field(..., description="Source of input data")
+    kepid: Optional[str] = Field(None, description="Kepler ID for test data")
+    features: Optional[Dict[str, float]] = Field(None, description="Features for manual input")
+    predict: bool = Field(True, description="Flag to run prediction")
+
+class FeatureUploadRequest(BaseModel):
+    model: ModelType = Field(..., description="ML model type (xgboost, svm, or knn)")
+    file_content: str = Field(..., description="CSV content as string")
+    predict: bool = Field(True, description="Flag to run prediction")
+
+
+responses.py >> template
+
+from pydantic import BaseModel, Field
+from typing import Dict, List, Optional, Any
+
+class DLPredictionResponse(BaseModel):
+    candidate_probability: float = Field(..., description="Probability of being an exoplanet candidate")
+    non_candidate_probability: float = Field(..., description="Probability of not being an exoplanet candidate")
+    lightcurve_link: str = Field(..., description="Link to the NASA archive for lightcurve data")
+    dv_report_link: str = Field(..., description="Link to the DV report")
+    kepid: str = Field(..., description="Kepler ID used for prediction")
+    model_used: str = Field(..., description="Model used for prediction")
+
+class MLPredictionResponse(BaseModel):
+    prediction: float = Field(..., description="Prediction result (probability or class)")
+    prediction_class: str = Field(..., description="Predicted class (e.g., 'candidate', 'non-candidate')")
+    features_used: Dict[str, float] = Field(..., description="Features used for prediction")
+    model_used: str = Field(..., description="Model used for prediction")
+    kepid: Optional[str] = Field(None, description="Kepler ID if applicable")
+
+class ErrorResponse(BaseModel):
+    error: str = Field(..., description="Error message")
+    details: Optional[Any] = Field(None, description="Additional error details")
+
+
+dl_models routing >> 
+
+from fastapi import APIRouter, HTTPException, Depends
+from app.schemas.requests import DLModelRequest
+from app.schemas.responses import DLPredictionResponse, ErrorResponse
+from app.services.prediction_service import get_dl_prediction
+from typing import Union
+
+router = APIRouter()
+
+@router.post("/predict", response_model=Union[DLPredictionResponse, ErrorResponse])
+async def predict_with_dl_model(request: DLModelRequest):
+    try:
+        if request.model not in ['cnn', 'dnn']:
+            raise HTTPException(status_code=400, detail=f"Invalid model type: {request.model}. Must be 'cnn' or 'dnn'")
+        
+        if not request.predict:
+            return {"message": "Prediction not requested"}
+        
+        # Call prediction service
+        result = await get_dl_prediction(request.model, request.kepid)
+        return result
+    
+    except Exception as e:
+        return ErrorResponse(error=str(e))
+
+
+ml_models routing >>
+
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends
+from app.schemas.requests import MLModelRequest, FeatureUploadRequest
+from app.schemas.responses import MLPredictionResponse, ErrorResponse
+from app.services.prediction_service import get_ml_prediction
+from typing import Union
+import json
+
+router = APIRouter()
+
+@router.post("/predict", response_model=Union[MLPredictionResponse, ErrorResponse])
+async def predict_with_ml_model(request: MLModelRequest):
+    try:
+        if request.model not in ['xgboost', 'svm', 'knn']:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid model type: {request.model}. Must be 'xgboost', 'svm', or 'knn'"
+            )
+        
+        if not request.predict:
+            return {"message": "Prediction not requested"}
+        
+        if request.datasource == "manual" and not request.features:
+            raise HTTPException(status_code=400, detail="Features required for manual data source")
+        
+        if request.datasource == "test" and not request.kepid:
+            raise HTTPException(status_code=400, detail="Kepler ID required for test data source")
+        
+        # Call prediction service
+        result = await get_ml_prediction(
+            model_type=request.model,
+            datasource=request.datasource,
+            kepid=request.kepid,
+            features=request.features
+        )
+        return result
+    
+    except Exception as e:
+        return ErrorResponse(error=str(e))
+
+@router.post("/upload", response_model=Union[MLPredictionResponse, ErrorResponse])
+async def predict_with_uploaded_data(request: FeatureUploadRequest):
+    try:
+        if request.model not in ['xgboost', 'svm', 'knn']:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid model type: {request.model}. Must be 'xgboost', 'svm', or 'knn'"
+            )
+        
+        # Process uploaded file and make prediction
+        result = await get_ml_prediction(
+            model_type=request.model,
+            datasource="upload",
+            file_content=request.file_content
+        )
+        return result
+    
+    except Exception as e:
+        return ErrorResponse(error=str(e))
+
+
+model_loader >> template
+
+import os
+import tensorflow as tf
+import joblib
+from fastapi import HTTPException
+
+# Paths to model files
+MODEL_DIR = "models"
+CNN_MODEL_PATH = os.path.join(MODEL_DIR, "cnn.keras")
+DNN_MODEL_PATH = os.path.join(MODEL_DIR, "dnn.keras")
+XGBOOST_MODEL_PATH = os.path.join(MODEL_DIR, "xgboost.joblib")
+SVM_MODEL_PATH = os.path.join(MODEL_DIR, "svm.joblib")
+KNN_MODEL_PATH = os.path.join(MODEL_DIR, "knn.joblib")
+
+# Cache for loaded models to avoid reloading
+_model_cache = {}
+
+def get_model(model_type: str):
+    """Load and cache ML models"""
+    model_type = model_type.lower()
+    
+    # Return cached model if available
+    if model_type in _model_cache:
+        return _model_cache[model_type]
+    
+    try:
+        if model_type == "cnn":
+            model = tf.keras.models.load_model(CNN_MODEL_PATH)
+        elif model_type == "dnn":
+            model = tf.keras.models.load_model(DNN_MODEL_PATH)
+        elif model_type == "xgboost":
+            model = joblib.load(XGBOOST_MODEL_PATH)
+        elif model_type == "svm":
+            model = joblib.load(SVM_MODEL_PATH)
+        elif model_type == "knn":
+            model = joblib.load(KNN_MODEL_PATH)
+        else:
+            raise ValueError(f"Unknown model type: {model_type}")
+        
+        # Cache the model
+        _model_cache[model_type] = model
+        return model
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load model {model_type}: {str(e)}")
+
+
+from app.models.model_loader import get_model
+from app.services.data_service import (
+    get_time_series_data,
+    get_feature_data_from_kepid,
+    process_manual_features,
+    process_uploaded_features
+)
+from app.schemas.responses import DLPredictionResponse, MLPredictionResponse
+import numpy as np
+import pandas as pd
+
+async def get_dl_prediction(model_type: str, kepid: str) -> DLPredictionResponse:
+    """Get prediction using deep learning models (CNN/DNN)"""
+    # Load model
+    model = get_model(model_type)
+    
+    # Get time series data for the kepler ID
+    time_series_data = await get_time_series_data(kepid)
+    
+    # Preprocess data for the model
+    preprocessed_data = preprocess_time_series(time_series_data)
+    
+    # Make prediction
+    prediction = model.predict(preprocessed_data)
+    
+    # Format prediction results
+    candidate_prob = float(prediction[0][0])
+    non_candidate_prob = 1.0 - candidate_prob
+    
+    # Get links
+    lightcurve_link = f"https://exoplanetarchive.ipac.caltech.edu/cgi-bin/keplerLightCurveViewer/nph-keplerLCViewer?kepid={kepid}"
+    dv_report_link = f"https://exoplanetarchive.ipac.caltech.edu/data/KeplerData/dv_reports/kepler{kepid}/kplr{kepid}-dv_report.pdf"
+    
+    return DLPredictionResponse(
+        candidate_probability=candidate_prob,
+        non_candidate_probability=non_candidate_prob,
+        lightcurve_link=lightcurve_link,
+        dv_report_link=dv_report_link,
+        kepid=kepid,
+        model_used=model_type.upper()
+    )
+
+async def get_ml_prediction(
+    model_type: str, 
+    datasource: str, 
+    kepid: str = None,
+    features: dict = None,
+    file_content: str = None
+) -> MLPredictionResponse:
+    """Get prediction using machine learning models (XGBoost/SVM/KNN)"""
+    # Load model
+    model = get_model(model_type)
+    
+    # Prepare input features based on data source
+    if datasource == "test":
+        input_features = await get_feature_data_from_kepid(kepid)
+        features_used = input_features.to_dict()
+    elif datasource == "manual":
+        input_features = await process_manual_features(features)
+        features_used = features
+    elif datasource == "upload":
+        input_features = await process_uploaded_features(file_content)
+        features_used = input_features.iloc[0].to_dict()
+    else:
+        raise ValueError(f"Invalid data source: {datasource}")
+    
+    # Make prediction
+    prediction = model.predict_proba(input_features)[0] if hasattr(model, 'predict_proba') else model.predict(input_features)[0]
+    
+    # For binary classification, get probability of positive class
+    if hasattr(model, 'predict_proba'):
+        prediction_value = float(prediction[1])  # Probability of positive class
+    else:
+        prediction_value = float(prediction)
+    
+    # Determine prediction class
+    prediction_class = "candidate" if prediction_value >= 0.5 else "non-candidate"
+    
+    return MLPredictionResponse(
+        prediction=prediction_value,
+        prediction_class=prediction_class,
+        features_used=features_used,
+        model_used=model_type.upper(),
+        kepid=kepid if datasource == "test" else None
+    )
+
+def preprocess_time_series(time_series_data):
+    """Preprocess time series data for deep learning models"""
+    # Implement preprocessing logic based on your models' requirements
+    # This is a placeholder - you need to implement the actual preprocessing
+    return np.array(time_series_data).reshape(1, -1, 1)  # Example reshape for CNN input
+
+
+data service >> template
+
+import pandas as pd
+import numpy as np
+import os
+from fastapi import HTTPException
+import io
+
+# Paths to data files
+DATA_DIR = "data"
+TIME_SERIES_DIR = os.path.join(DATA_DIR, "time_series")
+FEATURES_DIR = os.path.join(DATA_DIR, "features")
+TEST_DATA_PATH = os.path.join(DATA_DIR, "test_data.csv")
+
+async def get_time_series_data(kepid: str):
+    """Fetch time series data for a given Kepler ID"""
+    try:
+        # Look for time series data file for this kepid
+        file_path = os.path.join(TIME_SERIES_DIR, f"{kepid}.csv")
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"Time series data not found for Kepler ID: {kepid}")
+        
+        # Read time series data
+        data = pd.read_csv(file_path)
+        return data.values
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Failed to fetch time series data: {str(e)}")
+
+async def get_feature_data_from_kepid(kepid: str):
+    """Fetch feature data for a given Kepler ID from test data"""
+    try:
+        # Read test data
+        test_data = pd.read_csv(TEST_DATA_PATH)
+        
+        # Filter for the given kepid
+        filtered_data = test_data[test_data['kepid'] == kepid]
+        
+        if filtered_data.empty:
+            raise ValueError(f"No feature data found for Kepler ID: {kepid}")
+        
+        # Return features (excluding kepid column)
+        return filtered_data.drop('kepid', axis=1, errors='ignore')
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Failed to fetch feature data: {str(e)}")
+
+async def process_manual_features(features: dict):
+    """Process manually entered features"""
+    try:
+        # Convert to DataFrame
+        df = pd.DataFrame([features])
+        
+        # Validate features (this is a placeholder - implement actual validation)
+        required_features = ['feature1', 'feature2', 'feature3']  # Replace with your actual feature names
+        for feature in required_features:
+            if feature not in features:
+                raise ValueError(f"Missing required feature: {feature}")
+        
+        return df
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid feature data: {str(e)}")
+
+async def process_uploaded_features(file_content: str):
+    """Process uploaded feature data"""
+    try:
+        # Convert string content to DataFrame
+        df = pd.read_csv(io.StringIO(file_content))
+        
+        # Validate DataFrame (this is a placeholder - implement actual validation)
+        required_features = ['feature1', 'feature2', 'feature3']  # Replace with your actual feature names
+        for feature in required_features:
+            if feature not in df.columns:
+                raise ValueError(f"Missing required feature: {feature}")
+        
+        return df
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid uploaded data: {str(e)}")
