@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from app.schemas.requests import MLModelRequest
-from app.schemas.responses import MLPredictionResponse, ErrorResponse
-from app.services.prediction_service import get_ml_prediction
+from app.schemas.responses import MLPredictionResponse, AveragedMLPredictionResponse, ErrorResponse
+from app.services.prediction_service import get_ml_prediction, get_averaged_ml_prediction
 from typing import Union
 
 router = APIRouter()
 
-@router.post("/predict", response_model=Union[MLPredictionResponse, ErrorResponse])
+@router.post("/predict", response_model=Union[MLPredictionResponse, AveragedMLPredictionResponse, ErrorResponse])
 async def predict_with_ml_model(request: MLModelRequest):
     """Make predictions using machine learning models (GB/SVM)"""
     try:
@@ -19,6 +19,22 @@ async def predict_with_ml_model(request: MLModelRequest):
         if not request.predict:
             return {"message": "Prediction not requested"}
         
+        # Handle new pre-loaded datasource format
+        if request.datasource == "pre-loaded":
+            if not request.data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Data type (kepler/tess) required for pre-loaded data source"
+                )
+            
+            # Call the new averaged prediction service
+            result = await get_averaged_ml_prediction(
+                model_type=request.model,
+                data_type=request.data
+            )
+            return result
+        
+        # Handle existing datasource formats
         if request.datasource == "manual" and not request.features:
             raise HTTPException(
                 status_code=400, 
@@ -31,7 +47,7 @@ async def predict_with_ml_model(request: MLModelRequest):
                 detail="Kepler ID required for test data source"
             )
         
-        # Call prediction service
+        # Call existing prediction service for manual/test datasources
         result = await get_ml_prediction(
             model_type=request.model,
             datasource=request.datasource,

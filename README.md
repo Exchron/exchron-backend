@@ -97,6 +97,13 @@ curl -X POST "http://localhost:8000/api/dl/predict" ^
      -d "{\"model\": \"cnn\", \"kepid\": \"123456\", \"predict\": true}"
 ```
 
+#### Test Machine Learning Model with Pre-loaded Data (NEW FORMAT):
+```cmd
+curl -X POST "http://localhost:8000/api/ml/predict" ^
+     -H "Content-Type: application/json" ^
+     -d "{\"model\": \"gb\", \"datasource\": \"pre-loaded\", \"data\": \"kepler\", \"predict\": true}"
+```
+
 #### Test Machine Learning Model with Test Data:
 ```cmd
 curl -X POST "http://localhost:8000/api/ml/predict" ^
@@ -176,35 +183,69 @@ print("Manual Prediction:", manual_response.json())
 }
 ```
 
-### Machine Learning Model Response:
+### Machine Learning Model Response (Pre-loaded Data - NEW):
 ```json
 {
-    "prediction": 0.8234,
-    "prediction_class": "candidate",
-    "features_used": {
-        "period": 3.525,
-        "impact": 0.146,
-        "duration": 2.957,
-        "depth": 103.4,
-        "temp": 5455.0,
-        "logg": 4.467,
-        "metallicity": 0.04
+    "candidate_probability": 0.4270,
+    "non_candidate_probability": 0.5730,
+    "first": {
+        "kepid": "7537660",
+        "candidate_probability": 0.0357,
+        "non_candidate_probability": 0.9643
     },
-    "model_used": "XGBOOST",
-    "kepid": "123456"
+    "second": {
+        "kepid": "3219037",
+        "candidate_probability": 0.9254,
+        "non_candidate_probability": 0.0746
+    },
+    "third": {
+        "kepid": "9729691",
+        "candidate_probability": 0.9695,
+        "non_candidate_probability": 0.0305
+    },
+    ...
+    "tenth": {
+        "kepid": "6531143",
+        "candidate_probability": 0.3172,
+        "non_candidate_probability": 0.6828
+    }
+}
+```
+
+### Machine Learning Model Response (Manual/Test Data):
+```json
+{
+    "candidate_probability": 0.8234,
+    "non_candidate_probability": 0.1766
 }
 ```
 
 ## 🔧 Configuration
 
+### Data Source Options:
+- **manual**: User-provided KOI features
+- **test**: Predefined test data with specific Kepler IDs
+- **pre-loaded**: Uses first 10 records from KOI-Playground-Test-Data.csv (NEW)
+
+### Data Types for Pre-loaded Source:
+- **kepler**: Kepler telescope data
+- **tess**: TESS telescope data (uses same KOI dataset)
+
 ### Required Features for Manual Input:
-- **period**: Orbital period in days
-- **impact**: Impact parameter (0-1)
-- **duration**: Transit duration in hours
-- **depth**: Transit depth in ppm
-- **temp**: Stellar effective temperature in K
-- **logg**: Stellar surface gravity
-- **metallicity**: Stellar metallicity [Fe/H]
+- **koi_period**: Orbital period in days
+- **koi_time0bk**: Transit epoch in Barycentric Kepler Julian Day
+- **koi_impact**: Impact parameter (0-1)
+- **koi_duration**: Transit duration in hours
+- **koi_depth**: Transit depth in ppm
+- **koi_incl**: Inclination in degrees
+- **koi_model_snr**: Transit signal-to-noise ratio
+- **koi_count**: Number of transits observed
+- **koi_bin_oedp_sig**: Odd-even depth comparison significance
+- **koi_steff**: Stellar effective temperature in K
+- **koi_slogg**: Stellar surface gravity (log g)
+- **koi_srad**: Stellar radius in solar radii
+- **koi_smass**: Stellar mass in solar masses
+- **koi_kepmag**: Kepler magnitude
 
 ### Available Test Kepler IDs:
 - 123456
@@ -212,6 +253,13 @@ print("Manual Prediction:", manual_response.json())
 - 345678
 - 901234
 - 567890
+
+### Pre-loaded Data Features:
+When using `datasource: "pre-loaded"`, the API automatically:
+1. Loads the first 10 records from `data/KOI-Playground-Test-Data.csv`
+2. Makes predictions for each record using the specified model (GB or SVM)
+3. Returns averaged probabilities across all 10 predictions
+4. Provides individual predictions for each of the 10 records (first, second, ..., tenth)
 
 ## 🐳 Docker Deployment
 

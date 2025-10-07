@@ -19,8 +19,8 @@ app.add_middleware(
 )
 
 # Include routers  
-app.include_router(dl_models.router, prefix="/dl", tags=["Deep Learning Models"])
-app.include_router(ml_models.router, prefix="/ml", tags=["Machine Learning Models"])
+app.include_router(dl_models.router, prefix="/api/dl", tags=["Deep Learning Models"])
+app.include_router(ml_models.router, prefix="/api/ml", tags=["Machine Learning Models"])
 
 @app.get("/", tags=["Root"])
 async def read_root():
@@ -35,9 +35,9 @@ async def read_root():
             "svm": "Support Vector Machine for KOI feature classification"
         },
         "endpoints": {
-            "dl_predict": "/dl/predict",
-            "ml_predict": "/ml/predict", 
-            "available_ids": "/dl/available-ids",
+            "dl_predict": "/api/dl/predict",
+            "ml_predict": "/api/ml/predict", 
+            "available_ids": "/api/dl/available-ids",
             "docs": "/docs"
         }
     }

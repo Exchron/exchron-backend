@@ -124,3 +124,78 @@ async def get_ml_prediction(
         candidate_probability=candidate_prob,
         non_candidate_probability=non_candidate_prob
     )
+
+async def get_averaged_ml_prediction(
+    model_type: str,
+    data_type: str = "kepler"
+):
+    """Get averaged predictions from the first 10 records in KOI-Playground-Test-Data.csv"""
+    from app.services.data_service import get_first_ten_koi_records
+    from app.schemas.responses import AveragedMLPredictionResponse, IndividualPrediction
+    
+    # Validate model type
+    if model_type not in ['gb', 'svm']:
+        raise ValueError(f"Invalid model type: {model_type}. Must be 'gb' or 'svm'")
+    
+    # Load model
+    model = get_model(model_type)
+    
+    # Get first 10 records from KOI data
+    records = await get_first_ten_koi_records(data_type)
+    
+    individual_predictions = []
+    candidate_probs = []
+    non_candidate_probs = []
+    
+    # Process each of the 10 records
+    for record in records:
+        kepid = record["kepid"]
+        features = record["features"]
+        
+        # Convert features to DataFrame for processing
+        input_features = pd.DataFrame([features])
+        
+        # Convert to numpy array for prediction
+        feature_array = input_features.values
+        
+        # Make prediction with probability
+        if hasattr(model, 'predict_proba'):
+            prediction_proba = model.predict_proba(feature_array)[0]
+            candidate_prob = float(prediction_proba[1])  # Probability of candidate class
+            non_candidate_prob = float(prediction_proba[0])  # Probability of non-candidate class
+        else:
+            # Fallback for models without predict_proba
+            prediction = model.predict(feature_array)[0]
+            candidate_prob = float(prediction) if prediction > 0.5 else 0.0
+            non_candidate_prob = 1.0 - candidate_prob
+        
+        # Store individual prediction
+        individual_predictions.append(IndividualPrediction(
+            kepid=kepid,
+            candidate_probability=candidate_prob,
+            non_candidate_probability=non_candidate_prob
+        ))
+        
+        # Collect probabilities for averaging
+        candidate_probs.append(candidate_prob)
+        non_candidate_probs.append(non_candidate_prob)
+    
+    # Calculate averages
+    avg_candidate_prob = sum(candidate_probs) / len(candidate_probs)
+    avg_non_candidate_prob = sum(non_candidate_probs) / len(non_candidate_probs)
+    
+    # Create response with averaged predictions and all 10 individual predictions
+    return AveragedMLPredictionResponse(
+        candidate_probability=avg_candidate_prob,
+        non_candidate_probability=avg_non_candidate_prob,
+        first=individual_predictions[0],
+        second=individual_predictions[1],
+        third=individual_predictions[2],
+        fourth=individual_predictions[3],
+        fifth=individual_predictions[4],
+        sixth=individual_predictions[5],
+        seventh=individual_predictions[6],
+        eighth=individual_predictions[7],
+        ninth=individual_predictions[8],
+        tenth=individual_predictions[9]
+    )

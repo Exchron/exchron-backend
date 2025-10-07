@@ -223,3 +223,47 @@ async def get_ground_truth(kepid: str) -> str:
         return None
     except Exception:
         return None
+
+async def get_first_ten_koi_records(data_type: str = "kepler") -> pd.DataFrame:
+    """Get the first 10 records from KOI-Playground-Test-Data.csv"""
+    try:
+        koi_data_path = os.path.join(DATA_DIR, "KOI-Playground-Test-Data.csv")
+        
+        if not os.path.exists(koi_data_path):
+            raise FileNotFoundError(f"KOI data file not found at {koi_data_path}")
+        
+        # Load KOI data
+        koi_data = pd.read_csv(koi_data_path)
+        
+        # Get first 10 records
+        first_ten = koi_data.head(10)
+        
+        # Extract the KOI features for each record
+        feature_columns = [
+            "koi_period", "koi_time0bk", "koi_impact", "koi_duration", "koi_depth",
+            "koi_incl", "koi_model_snr", "koi_count", "koi_bin_oedp_sig",
+            "koi_steff", "koi_slogg", "koi_srad", "koi_smass", "koi_kepmag"
+        ]
+        
+        # Create a list to store processed records
+        processed_records = []
+        
+        for _, row in first_ten.iterrows():
+            record = {
+                "kepid": str(row['kepid']),
+                "features": {}
+            }
+            
+            # Extract features and handle NaN values
+            for feature in feature_columns:
+                if feature in row and pd.notna(row[feature]):
+                    record["features"][feature] = float(row[feature])
+                else:
+                    record["features"][feature] = 0.0
+            
+            processed_records.append(record)
+        
+        return processed_records
+        
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Failed to fetch KOI records: {str(e)}")
