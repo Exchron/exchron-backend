@@ -11,11 +11,8 @@ class DLPredictionResponse(BaseModel):
     model_used: str = Field(..., description="Model used for prediction")
 
 class MLPredictionResponse(BaseModel):
-    prediction: float = Field(..., description="Prediction result (probability or class)")
-    prediction_class: str = Field(..., description="Predicted class (e.g., 'candidate', 'non-candidate')")
-    features_used: Dict[str, float] = Field(..., description="Features used for prediction")
-    model_used: str = Field(..., description="Model used for prediction")
-    kepid: Optional[str] = Field(None, description="Kepler ID if applicable")
+    candidate_probability: float = Field(..., description="Probability of being an exoplanet candidate")
+    non_candidate_probability: float = Field(..., description="Probability of not being an exoplanet candidate")
 
 class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error message")

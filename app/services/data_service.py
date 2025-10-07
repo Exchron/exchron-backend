@@ -10,6 +10,7 @@ from .feature_normalizer import get_feature_normalizer
 DATA_DIR = "data"
 LIGHTKURVE_DATA_DIR = os.path.join(DATA_DIR, "lightkurve_data")
 TEST_METADATA_PATH = os.path.join(DATA_DIR, "lightkurve_test_metadata.csv")
+KOI_TEST_DATA_PATH = "KOI-Playground-Test-Data.csv"
 
 async def get_time_series_data(kepid: str) -> np.ndarray:
     """Fetch real time series data for a given Kepler ID"""
@@ -132,46 +133,84 @@ async def get_engineered_features(kepid: str) -> np.ndarray:
         raise HTTPException(status_code=404, detail=f"Failed to extract features: {str(e)}")
 
 async def get_feature_data_from_kepid(kepid: str) -> pd.DataFrame:
-    """Fetch feature data for a given Kepler ID from mock test data (for ML models)"""
+    """Fetch KOI feature data for a given Kepler ID from test data (for ML models)"""
     try:
-        # This is for the traditional ML models - keeping mock data for now
-        # In a real implementation, this would extract features differently
-        np.random.seed(int(kepid) % 1000)
+        if not os.path.exists(KOI_TEST_DATA_PATH):
+            raise FileNotFoundError(f"KOI test data file not found at {KOI_TEST_DATA_PATH}")
+        
+        # Load KOI test data
+        koi_data = pd.read_csv(KOI_TEST_DATA_PATH)
+        
+        # Find the row for the given kepid
+        target_row = koi_data[koi_data['kepid'] == int(kepid)]
+        
+        if target_row.empty:
+            raise ValueError(f"Kepler ID {kepid} not found in KOI test data")
+        
+        # Extract the KOI features as specified
         features = {
-            "period": np.random.uniform(1, 50),
-            "impact": np.random.uniform(0, 1),
-            "duration": np.random.uniform(1, 10),
-            "depth": np.random.uniform(10, 1000),
-            "temp": np.random.uniform(3000, 7000),
-            "logg": np.random.uniform(3.5, 5.0),
-            "metallicity": np.random.uniform(-0.5, 0.5)
+            "koi_period": target_row.iloc[0]['koi_period'],
+            "koi_time0bk": target_row.iloc[0]['koi_time0bk'],
+            "koi_impact": target_row.iloc[0]['koi_impact'],
+            "koi_duration": target_row.iloc[0]['koi_duration'],
+            "koi_depth": target_row.iloc[0]['koi_depth'],
+            "koi_incl": target_row.iloc[0]['koi_incl'],
+            "koi_model_snr": target_row.iloc[0]['koi_model_snr'],
+            "koi_count": target_row.iloc[0]['koi_count'],
+            "koi_bin_oedp_sig": target_row.iloc[0]['koi_bin_oedp_sig'],
+            "koi_steff": target_row.iloc[0]['koi_steff'],
+            "koi_slogg": target_row.iloc[0]['koi_slogg'],
+            "koi_srad": target_row.iloc[0]['koi_srad'],
+            "koi_smass": target_row.iloc[0]['koi_smass'],
+            "koi_kepmag": target_row.iloc[0]['koi_kepmag']
         }
+        
+        # Handle NaN values by filling with 0 (you may want to use different imputation strategy)
+        for key, value in features.items():
+            if pd.isna(value):
+                features[key] = 0.0
         
         return pd.DataFrame([features])
     except Exception as e:
-        raise HTTPException(status_code=404, detail=f"Failed to fetch feature data: {str(e)}")
+        raise HTTPException(status_code=404, detail=f"Failed to fetch KOI feature data: {str(e)}")
 
 async def process_manual_features(features: Dict[str, float]) -> pd.DataFrame:
-    """Process manually entered features for ML models"""
+    """Process manually entered KOI features for ML models"""
     try:
-        # Expected feature names for traditional ML models
-        required_features = ["period", "impact", "duration", "depth", "temp", "logg", "metallicity"]
+        # Expected KOI feature names
+        expected_features = [
+            "koi_period", "koi_time0bk", "koi_impact", "koi_duration", "koi_depth",
+            "koi_incl", "koi_model_snr", "koi_count", "koi_bin_oedp_sig",
+            "koi_steff", "koi_slogg", "koi_srad", "koi_smass", "koi_kepmag"
+        ]
         
-        # Check if all required features are present
-        missing_features = [f for f in required_features if f not in features]
+        # Check if all expected features are present
+        missing_features = [f for f in expected_features if f not in features]
         if missing_features:
-            raise ValueError(f"Missing required features: {missing_features}")
+            raise ValueError(f"Missing required KOI features: {missing_features}")
         
-        # Create DataFrame with features
-        df = pd.DataFrame([features])
+        # Create DataFrame with features in the correct order
+        df_features = {feature: features[feature] for feature in expected_features}
+        df = pd.DataFrame([df_features])
         return df
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid feature data: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid KOI feature data: {str(e)}")
 
 async def check_kepid_exists(kepid: str) -> bool:
     """Check if a Kepler ID exists in the dataset"""
     file_path = os.path.join(LIGHTKURVE_DATA_DIR, f"kepler_{kepid}_lightkurve.csv")
     return os.path.exists(file_path)
+
+async def check_kepid_exists_in_koi_data(kepid: str) -> bool:
+    """Check if a Kepler ID exists in the KOI test data"""
+    try:
+        if not os.path.exists(KOI_TEST_DATA_PATH):
+            return False
+        
+        koi_data = pd.read_csv(KOI_TEST_DATA_PATH)
+        return int(kepid) in koi_data['kepid'].values
+    except Exception:
+        return False
 
 async def get_ground_truth(kepid: str) -> str:
     """Get ground truth label for a Kepler ID if available"""

@@ -27,7 +27,7 @@ A sophisticated FastAPI backend for exoplanet classification using **real traine
 
 - Python 3.9 or higher
 - pip package manager
-- **Required model files**: `models/exchron-cnn.keras` and `models/exchron-dnn.keras`
+- **Required model files**: `models/cnn/exchron-cnn.keras` and `models/dnn/exchron-dnn.keras`
 - **Required data**: `data/lightkurve_data/` directory with Kepler lightcurve CSV files
 
 ### Installation

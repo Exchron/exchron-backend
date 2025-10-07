@@ -18,9 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(dl_models.router, prefix="/api/dl", tags=["Deep Learning Models"])
-app.include_router(ml_models.router, prefix="/api/ml", tags=["Machine Learning Models"])
+# Include routers  
+app.include_router(dl_models.router, prefix="/dl", tags=["Deep Learning Models"])
+app.include_router(ml_models.router, prefix="/ml", tags=["Machine Learning Models"])
 
 @app.get("/", tags=["Root"])
 async def read_root():
@@ -31,12 +31,13 @@ async def read_root():
         "models": {
             "cnn": "Convolutional Neural Network for light curve analysis",
             "dnn": "Dual-input Deep Neural Network (time series + features)",
-            "ml_models": "XGBoost, SVM, KNN (mock implementations)"
+            "gb": "Gradient Boosting for KOI feature classification",
+            "svm": "Support Vector Machine for KOI feature classification"
         },
         "endpoints": {
-            "dl_predict": "/api/dl/predict",
-            "ml_predict": "/api/ml/predict", 
-            "available_ids": "/api/dl/available-ids",
+            "dl_predict": "/dl/predict",
+            "ml_predict": "/ml/predict", 
+            "available_ids": "/dl/available-ids",
             "docs": "/docs"
         }
     }
@@ -44,8 +45,8 @@ async def read_root():
 @app.get("/health", tags=["Health"])
 async def health_check():
     # Check if model files exist
-    cnn_exists = os.path.exists("models/exchron-cnn.keras")
-    dnn_exists = os.path.exists("models/exchron-dnn.keras")
+    cnn_exists = os.path.exists("models/cnn/exchron-cnn.keras")
+    dnn_exists = os.path.exists("models/dnn/exchron-dnn.keras")
     data_exists = os.path.exists("data/lightkurve_data")
     
     return {
@@ -76,19 +77,16 @@ async def list_models():
         ],
         "machine_learning_models": [
             {
-                "name": "xgboost",
+                "name": "gb",
                 "type": "Gradient Boosting",
-                "status": "mock implementation"
+                "input": "14 KOI features",
+                "file": "exchron-gb.joblib"
             },
             {
                 "name": "svm",
                 "type": "Support Vector Machine", 
-                "status": "mock implementation"
-            },
-            {
-                "name": "knn",
-                "type": "K-Nearest Neighbors",
-                "status": "mock implementation"
+                "input": "14 KOI features",
+                "file": "exchron-svm.joblib"
             }
         ]
     }

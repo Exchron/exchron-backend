@@ -8,12 +8,12 @@ router = APIRouter()
 
 @router.post("/predict", response_model=Union[MLPredictionResponse, ErrorResponse])
 async def predict_with_ml_model(request: MLModelRequest):
-    """Make predictions using machine learning models (XGBoost/SVM/KNN)"""
+    """Make predictions using machine learning models (GB/SVM)"""
     try:
-        if request.model not in ['xgboost', 'svm', 'knn']:
+        if request.model not in ['gb', 'svm']:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Invalid model type: {request.model}. Must be 'xgboost', 'svm', or 'knn'"
+                detail=f"Invalid model type: {request.model}. Must be 'gb' or 'svm'"
             )
         
         if not request.predict:
@@ -22,7 +22,7 @@ async def predict_with_ml_model(request: MLModelRequest):
         if request.datasource == "manual" and not request.features:
             raise HTTPException(
                 status_code=400, 
-                detail="Features required for manual data source"
+                detail="KOI features required for manual data source"
             )
         
         if request.datasource == "test" and not request.kepid:
@@ -49,30 +49,44 @@ async def predict_with_ml_model(request: MLModelRequest):
 async def list_ml_models():
     """List available machine learning models"""
     return {
-        "models": ["xgboost", "svm", "knn"],
-        "description": "XGBoost, Support Vector Machine, and K-Nearest Neighbors for feature-based classification"
+        "models": ["gb", "svm"],
+        "description": "Gradient Boosting and Support Vector Machine for KOI feature-based classification"
     }
 
 @router.get("/features")
 async def get_required_features():
-    """Get the list of required features for manual input"""
+    """Get the list of required KOI features for manual input"""
     return {
         "required_features": [
-            "period",
-            "impact", 
-            "duration",
-            "depth",
-            "temp",
-            "logg",
-            "metallicity"
+            "koi_period",
+            "koi_time0bk",
+            "koi_impact", 
+            "koi_duration",
+            "koi_depth",
+            "koi_incl",
+            "koi_model_snr",
+            "koi_count",
+            "koi_bin_oedp_sig",
+            "koi_steff",
+            "koi_slogg",
+            "koi_srad",
+            "koi_smass",
+            "koi_kepmag"
         ],
         "descriptions": {
-            "period": "Orbital period in days",
-            "impact": "Impact parameter",
-            "duration": "Transit duration in hours",
-            "depth": "Transit depth in ppm",
-            "temp": "Stellar effective temperature in K",
-            "logg": "Stellar surface gravity",
-            "metallicity": "Stellar metallicity [Fe/H]"
+            "koi_period": "Orbital period in days",
+            "koi_time0bk": "Transit epoch in Barycentric Kepler Julian Day (BKJD)",
+            "koi_impact": "Impact parameter",
+            "koi_duration": "Transit duration in hours",
+            "koi_depth": "Transit depth in parts per million (ppm)",
+            "koi_incl": "Inclination in degrees",
+            "koi_model_snr": "Transit signal-to-noise ratio",
+            "koi_count": "Number of transits observed",
+            "koi_bin_oedp_sig": "Odd-even depth comparison significance",
+            "koi_steff": "Stellar effective temperature in Kelvin",
+            "koi_slogg": "Stellar surface gravity (log g)",
+            "koi_srad": "Stellar radius in solar radii",
+            "koi_smass": "Stellar mass in solar masses",
+            "koi_kepmag": "Kepler magnitude"
         }
     }

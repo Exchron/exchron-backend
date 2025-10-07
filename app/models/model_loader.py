@@ -1,34 +1,22 @@
 import os
 import numpy as np
 import tensorflow as tf
+import joblib
 from fastapi import HTTPException
 from typing import Any
 
-# Paths to model files (adjusted for the actual file structure)
+# Paths to model files (updated for new subdirectory structure)
 MODEL_DIR = "models"
-CNN_MODEL_PATH = os.path.join(MODEL_DIR, "exchron-cnn.keras")
-DNN_MODEL_PATH = os.path.join(MODEL_DIR, "exchron-dnn.keras")
-
-# Mock ML model implementations for XGBoost/SVM/KNN (these would be replaced with real models)
-class MockMLModel:
-    def __init__(self, model_type: str):
-        self.model_type = model_type
-    
-    def predict_proba(self, data: np.ndarray) -> np.ndarray:
-        # Mock prediction - returns random probabilities for binary classification
-        np.random.seed(42)
-        prob_positive = np.random.random()
-        return np.array([[1 - prob_positive, prob_positive]])
-    
-    def predict(self, data: np.ndarray) -> np.ndarray:
-        proba = self.predict_proba(data)
-        return np.array([1 if proba[0][1] > 0.5 else 0])
+CNN_MODEL_PATH = os.path.join(MODEL_DIR, "cnn", "exchron-cnn.keras")
+DNN_MODEL_PATH = os.path.join(MODEL_DIR, "dnn", "exchron-dnn.keras")
+GB_MODEL_PATH = os.path.join(MODEL_DIR, "gb", "exchron-gb.joblib")
+SVM_MODEL_PATH = os.path.join(MODEL_DIR, "svm", "exchron-svm.joblib")
 
 # Cache for loaded models to avoid reloading
 _model_cache = {}
 
 def get_model(model_type: str) -> Any:
-    """Load and cache ML models (real CNN/DNN, mock for others)"""
+    """Load and cache ML models (CNN/DNN/GB/SVM)"""
     model_type = model_type.lower()
     
     # Return cached model if available
@@ -44,11 +32,16 @@ def get_model(model_type: str) -> Any:
             if not os.path.exists(DNN_MODEL_PATH):
                 raise FileNotFoundError(f"DNN model file not found at {DNN_MODEL_PATH}")
             model = tf.keras.models.load_model(DNN_MODEL_PATH)
-        elif model_type in ["xgboost", "svm", "knn"]:
-            # These remain as mock implementations for now
-            model = MockMLModel(model_type)
+        elif model_type == "gb":
+            if not os.path.exists(GB_MODEL_PATH):
+                raise FileNotFoundError(f"GB model file not found at {GB_MODEL_PATH}")
+            model = joblib.load(GB_MODEL_PATH)
+        elif model_type == "svm":
+            if not os.path.exists(SVM_MODEL_PATH):
+                raise FileNotFoundError(f"SVM model file not found at {SVM_MODEL_PATH}")
+            model = joblib.load(SVM_MODEL_PATH)
         else:
-            raise ValueError(f"Unknown model type: {model_type}")
+            raise ValueError(f"Unknown model type: {model_type}. Supported models: cnn, dnn, gb, svm")
         
         # Cache the model
         _model_cache[model_type] = model

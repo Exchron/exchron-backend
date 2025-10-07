@@ -93,8 +93,8 @@ python test_api.py
 - **Processing Time**: <2 seconds per prediction
 
 ## 🔗 Key Files:
-- `models/exchron-cnn.keras` - Real CNN model
-- `models/exchron-dnn.keras` - Real DNN model  
+- `models/cnn/exchron-cnn.keras` - Real CNN model
+- `models/dnn/exchron-dnn.keras` - Real DNN model  
 - `data/lightkurve_data/` - Kepler lightcurve CSV files
 - `data/lightkurve_test_metadata.csv` - Ground truth labels
 - `app/services/data_service.py` - Real data processing
