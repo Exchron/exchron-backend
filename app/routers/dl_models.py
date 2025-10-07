@@ -51,9 +51,11 @@ async def list_dl_models():
             },
             {
                 "name": "dnn", 
-                "description": "Dual-input Deep Neural Network for time series + features",
+                "description": "Dual-input Deep Neural Network with softmax output for probability classification",
                 "input_shape": "[(3000,), (12,)]",
-                "input_description": "Time series data + 12 engineered features"
+                "input_description": "Time series data + 12 engineered features",
+                "output_description": "Probability distribution over candidate/non-candidate classes",
+                "architecture": "Updated with softmax activation for explicit probabilities"
             }
         ]
     }
@@ -105,3 +107,47 @@ async def get_available_kepler_ids():
     
     except Exception as e:
         return {"error": f"Failed to retrieve available IDs: {str(e)}"}
+
+@router.get("/debug-features/{kepid}")
+async def debug_features(kepid: str):
+    """Debug endpoint to inspect feature extraction and normalization"""
+    try:
+        from app.services.data_service import get_engineered_features
+        from app.services.feature_normalizer import get_feature_normalizer
+        
+        # Get raw and normalized features
+        normalized_features = await get_engineered_features(kepid)
+        
+        # Get normalizer info
+        normalizer = get_feature_normalizer()
+        feature_info = normalizer.get_feature_info()
+        
+        # Calculate raw features for comparison
+        import numpy as np
+        raw_features = (normalized_features * np.array([info['std'] for info in feature_info]).reshape(1, -1) + 
+                       np.array([info['mean'] for info in feature_info]).reshape(1, -1))
+        
+        # Format response
+        features_comparison = []
+        for i, info in enumerate(feature_info):
+            features_comparison.append({
+                "feature": info['name'],
+                "description": info['description'],
+                "raw_value": float(raw_features[0][i]),
+                "normalized_value": float(normalized_features[0][i]),
+                "training_mean": info['mean'],
+                "training_std": info['std']
+            })
+        
+        return {
+            "kepid": kepid,
+            "features": features_comparison,
+            "summary": {
+                "raw_range": [float(raw_features.min()), float(raw_features.max())],
+                "normalized_range": [float(normalized_features.min()), float(normalized_features.max())],
+                "normalization_applied": True
+            }
+        }
+    
+    except Exception as e:
+        return {"error": f"Failed to debug features for {kepid}: {str(e)}"}

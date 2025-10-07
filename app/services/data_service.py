@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from typing import Dict, Any, Tuple
 import os
 from scipy import stats
+from .feature_normalizer import get_feature_normalizer
 
 # Data paths
 DATA_DIR = "data"
@@ -118,7 +119,14 @@ async def get_engineered_features(kepid: str) -> np.ndarray:
         # 12. Mean absolute deviation
         features.append(np.mean(np.abs(flux_clean - flux_clean.mean())))
         
-        return np.array(features).reshape(1, -1)
+        # Convert to numpy array
+        features_array = np.array(features).reshape(1, -1)
+        
+        # Apply proper feature normalization using the trained model's statistics
+        normalizer = get_feature_normalizer()
+        features_normalized = normalizer.normalize(features_array)
+        
+        return features_normalized
         
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Failed to extract features: {str(e)}")

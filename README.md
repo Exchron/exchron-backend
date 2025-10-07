@@ -168,8 +168,9 @@ print("Manual Prediction:", manual_response.json())
 {
     "candidate_probability": 0.7234,
     "non_candidate_probability": 0.2766,
-    "lightcurve_link": "https://exoplanetarchive.ipac.caltech.edu/cgi-bin/keplerLightCurveViewer/nph-keplerLCViewer?kepid=123456",
-    "dv_report_link": "https://exoplanetarchive.ipac.caltech.edu/data/KeplerData/dv_reports/kepler123456/kplr123456-dv_report.pdf",
+    "lightcurve_link": "http://archive.stsci.edu/pub/kepler/lightcurves/0001/000123456/",
+    "target_pixel_file_link": "http://archive.stsci.edu/pub/kepler/target_pixel_files/0001/000123456/",
+    "dv_report_link": "http://exoplanetarchive.ipac.caltech.edu:8000/data/KeplerData/000/000123/000123456/dv/kplr000123456-20160209194854_dvr.pdf",
     "kepid": "123456",
     "model_used": "CNN"
 }
@@ -236,9 +237,36 @@ print("Manual Prediction:", manual_response.json())
 - **Output**: Binary classification probability
 - **Use case**: Feature-based classification using stellar and planetary parameters
 
+## 🔗 Archive Links
+
+The API provides links to official astronomical data archives:
+
+### DV Report Links
+- **Format**: `http://exoplanetarchive.ipac.caltech.edu:8000/data/KeplerData/XXX/XXXXXX/XXXXXXXXX/dv/kplrXXXXXXXXX-TIMESTAMP_dvr.pdf`
+- **Source**: NASA Exoplanet Archive
+- **Contains**: Data validation reports with detailed analysis results
+
+### STScI Archive Links
+The API includes links to the Space Telescope Science Institute (STScI) Kepler data archive:
+
+#### Lightcurve Files
+- **Format**: `http://archive.stsci.edu/pub/kepler/lightcurves/XXXX/KKKKKKKKK/`
+- **Contains**: Photometric time series data files
+- **Example**: `http://archive.stsci.edu/pub/kepler/lightcurves/0014/001429092/`
+
+#### Target Pixel Files
+- **Format**: `http://archive.stsci.edu/pub/kepler/target_pixel_files/XXXX/KKKKKKKKK/`
+- **Contains**: Pixel-level data for the target star
+- **Example**: `http://archive.stsci.edu/pub/kepler/target_pixel_files/0014/001429092/`
+
+**URL Structure Notes:**
+- `XXXX`: First 4 digits of the 9-digit zero-padded Kepler ID
+- `KKKKKKKKK`: Full 9-digit zero-padded Kepler ID
+- All URLs point to directory listings containing the actual data files
+
 ## ⚠️ Important Notes
 
-1. **Mock Implementation**: This is a simplified version using mock models for demonstration. In production, you would replace the mock models with actual trained models.
+1. **Real Data Integration**: This version uses authentic Kepler telescope data and provides links to official astronomical archives.
 
 2. **Data Sources**: 
    - `test`: Uses predefined test data with known Kepler IDs
