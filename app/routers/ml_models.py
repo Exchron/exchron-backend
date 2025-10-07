@@ -1,27 +1,33 @@
 from fastapi import APIRouter, HTTPException
 from app.schemas.requests import MLModelRequest
-from app.schemas.responses import MLPredictionResponse, AveragedMLPredictionResponse, ErrorResponse
-from app.services.prediction_service import get_ml_prediction, get_averaged_ml_prediction
-from typing import Union
+from app.schemas.responses import MLPredictionResponse, AveragedMLPredictionResponse, UploadMLPredictionResponse, ErrorResponse
+from app.services.prediction_service import get_ml_prediction, get_averaged_ml_prediction, get_upload_ml_prediction
+from typing import Union, Dict, Any
 
 router = APIRouter()
 
-@router.post("/predict", response_model=Union[MLPredictionResponse, AveragedMLPredictionResponse, ErrorResponse])
-async def predict_with_ml_model(request: MLModelRequest):
+@router.post("/predict", response_model=Union[MLPredictionResponse, AveragedMLPredictionResponse, UploadMLPredictionResponse, ErrorResponse])
+async def predict_with_ml_model(request: Dict[str, Any]):
     """Make predictions using machine learning models (GB/SVM)"""
     try:
-        if request.model not in ['gb', 'svm']:
+        # Extract basic fields
+        model_type = request.get("model")
+        datasource = request.get("datasource")
+        predict = request.get("predict", True)
+        
+        if model_type not in ['gb', 'svm']:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Invalid model type: {request.model}. Must be 'gb' or 'svm'"
+                detail=f"Invalid model type: {model_type}. Must be 'gb' or 'svm'"
             )
         
-        if not request.predict:
+        if not predict:
             return {"message": "Prediction not requested"}
         
         # Handle new pre-loaded datasource format
-        if request.datasource == "pre-loaded":
-            if not request.data:
+        if datasource == "pre-loaded":
+            data_type = request.get("data")
+            if not data_type:
                 raise HTTPException(
                     status_code=400,
                     detail="Data type (kepler/tess) required for pre-loaded data source"
@@ -29,32 +35,71 @@ async def predict_with_ml_model(request: MLModelRequest):
             
             # Call the new averaged prediction service
             result = await get_averaged_ml_prediction(
-                model_type=request.model,
-                data_type=request.data
+                model_type=model_type,
+                data_type=data_type
+            )
+            return result
+        
+        # Handle upload datasource
+        if datasource == "upload":
+            # Extract feature sets dynamically from the request
+            upload_features = {}
+            for key, value in request.items():
+                if key.startswith("features-target-") and isinstance(value, dict):
+                    upload_features[key] = value
+            
+            if not upload_features:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Upload features (features-target-*) required for upload data source"
+                )
+            
+            # Call upload prediction service
+            result = await get_upload_ml_prediction(
+                model_type=model_type,
+                upload_features=upload_features
             )
             return result
         
         # Handle existing datasource formats
-        if request.datasource == "manual" and not request.features:
-            raise HTTPException(
-                status_code=400, 
-                detail="KOI features required for manual data source"
+        if datasource == "manual":
+            features = request.get("features")
+            if not features:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="KOI features required for manual data source"
+                )
+            
+            # Call existing prediction service for manual datasource
+            result = await get_ml_prediction(
+                model_type=model_type,
+                datasource=datasource,
+                kepid=None,
+                features=features
             )
+            return result
         
-        if request.datasource == "test" and not request.kepid:
-            raise HTTPException(
-                status_code=400, 
-                detail="Kepler ID required for test data source"
+        if datasource == "test":
+            kepid = request.get("kepid")
+            if not kepid:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Kepler ID required for test data source"
+                )
+            
+            # Call existing prediction service for test datasource
+            result = await get_ml_prediction(
+                model_type=model_type,
+                datasource=datasource,
+                kepid=kepid,
+                features=None
             )
+            return result
         
-        # Call existing prediction service for manual/test datasources
-        result = await get_ml_prediction(
-            model_type=request.model,
-            datasource=request.datasource,
-            kepid=request.kepid,
-            features=request.features
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid datasource: {datasource}. Must be 'manual', 'test', 'pre-loaded', or 'upload'"
         )
-        return result
     
     except HTTPException:
         raise

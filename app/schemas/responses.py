@@ -19,6 +19,11 @@ class IndividualPrediction(BaseModel):
     candidate_probability: float = Field(..., description="Probability of being an exoplanet candidate")
     non_candidate_probability: float = Field(..., description="Probability of not being an exoplanet candidate")
 
+class UploadPrediction(BaseModel):
+    target_name: str = Field(..., description="Name of the target (e.g., 'features-target-1')")
+    candidate_probability: float = Field(..., description="Probability of being an exoplanet candidate")
+    non_candidate_probability: float = Field(..., description="Probability of not being an exoplanet candidate")
+
 class AveragedMLPredictionResponse(BaseModel):
     candidate_probability: float = Field(..., description="Average probability of being an exoplanet candidate across first 10 predictions")
     non_candidate_probability: float = Field(..., description="Average probability of not being an exoplanet candidate across first 10 predictions")
@@ -32,6 +37,11 @@ class AveragedMLPredictionResponse(BaseModel):
     eighth: IndividualPrediction = Field(..., description="Eighth individual prediction")
     ninth: IndividualPrediction = Field(..., description="Ninth individual prediction")
     tenth: IndividualPrediction = Field(..., description="Tenth individual prediction")
+
+class UploadMLPredictionResponse(BaseModel):
+    candidate_probability: float = Field(..., description="Average probability of being an exoplanet candidate across uploaded targets")
+    non_candidate_probability: float = Field(..., description="Average probability of not being an exoplanet candidate across uploaded targets")
+    predictions: Dict[str, UploadPrediction] = Field(..., description="Individual predictions for each uploaded target")
 
 class ErrorResponse(BaseModel):
     error: str = Field(..., description="Error message")

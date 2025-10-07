@@ -8,7 +8,7 @@ from app.services.data_service import (
     get_ground_truth
 )
 from app.services.url_service import get_archive_links
-from app.schemas.responses import DLPredictionResponse, MLPredictionResponse
+from app.schemas.responses import DLPredictionResponse, MLPredictionResponse, UploadMLPredictionResponse, UploadPrediction
 import numpy as np
 import pandas as pd
 from typing import Dict, Optional
@@ -198,4 +198,63 @@ async def get_averaged_ml_prediction(
         eighth=individual_predictions[7],
         ninth=individual_predictions[8],
         tenth=individual_predictions[9]
+    )
+
+async def get_upload_ml_prediction(
+    model_type: str,
+    upload_features: Dict[str, Dict[str, float]]
+) -> UploadMLPredictionResponse:
+    """Get predictions for uploaded feature sets using machine learning models (GB/SVM)"""
+    from app.services.data_service import process_manual_features
+    
+    # Validate model type
+    if model_type not in ['gb', 'svm']:
+        raise ValueError(f"Invalid model type: {model_type}. Must be 'gb' or 'svm'")
+    
+    # Load model
+    model = get_model(model_type)
+    
+    individual_predictions = {}
+    candidate_probs = []
+    non_candidate_probs = []
+    
+    # Process each uploaded feature set
+    for target_name, features in upload_features.items():
+        # Process features using existing service function
+        input_features = await process_manual_features(features)
+        
+        # Convert to numpy array for prediction
+        feature_array = input_features.values
+        
+        # Make prediction with probability
+        if hasattr(model, 'predict_proba'):
+            prediction_proba = model.predict_proba(feature_array)[0]
+            candidate_prob = float(prediction_proba[1])  # Probability of candidate class
+            non_candidate_prob = float(prediction_proba[0])  # Probability of non-candidate class
+        else:
+            # Fallback for models without predict_proba
+            prediction = model.predict(feature_array)[0]
+            candidate_prob = float(prediction) if prediction > 0.5 else 0.0
+            non_candidate_prob = 1.0 - candidate_prob
+        
+        # Store individual prediction
+        individual_predictions[target_name] = UploadPrediction(
+            target_name=target_name,
+            candidate_probability=candidate_prob,
+            non_candidate_probability=non_candidate_prob
+        )
+        
+        # Collect probabilities for averaging
+        candidate_probs.append(candidate_prob)
+        non_candidate_probs.append(non_candidate_prob)
+    
+    # Calculate averages
+    avg_candidate_prob = sum(candidate_probs) / len(candidate_probs) if candidate_probs else 0.0
+    avg_non_candidate_prob = sum(non_candidate_probs) / len(non_candidate_probs) if non_candidate_probs else 0.0
+    
+    # Create response with averaged predictions and all individual predictions
+    return UploadMLPredictionResponse(
+        candidate_probability=avg_candidate_prob,
+        non_candidate_probability=avg_non_candidate_prob,
+        predictions=individual_predictions
     )
