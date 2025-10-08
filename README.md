@@ -263,6 +263,10 @@ When using `datasource: "pre-loaded"`, the API automatically:
 
 ## 🐳 Docker Deployment
 
+For detailed Docker setup instructions and troubleshooting, see the **[Local Docker Setup Guide](LOCAL_DOCKER_SETUP.md)**.
+
+### Quick Docker Commands:
+
 1. **Build the Docker image:**
    ```cmd
    docker build -t exoplanet-api .
@@ -271,6 +275,11 @@ When using `datasource: "pre-loaded"`, the API automatically:
 2. **Run the container:**
    ```cmd
    docker run -p 8000:8000 exoplanet-api
+   ```
+
+3. **Using Docker Compose (Recommended):**
+   ```cmd
+   docker-compose up --build
    ```
 
 ## 🧠 Model Information
